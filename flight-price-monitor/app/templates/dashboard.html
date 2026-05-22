@@ -4,25 +4,132 @@
 <div class='space-y-6'>
   <section class='bg-white rounded-2xl shadow-sm p-6'>
     <h2 class='text-2xl font-bold'>智能低价票监控面板</h2>
-    <p class='text-slate-500 mt-2'>从“任务配置 → 自动巡检 → 低价提醒”一站式闭环管理。</p>
+    <p class='text-slate-500 mt-2'>通过顶部子标签在一个页面内完成任务管理、低价票、历史与日志查看，减少页面跳转。</p>
   </section>
+
   <section class='grid grid-cols-1 md:grid-cols-2 gap-4'>
     <div class='bg-white rounded-2xl p-6 shadow-sm'>
       <p class='text-slate-500 text-sm'>监控任务</p>
-      <p class='text-4xl font-bold mt-2'>{{ tasks }}</p>
+      <p class='text-4xl font-bold mt-2'>{{ tasks_count }}</p>
     </div>
     <div class='bg-white rounded-2xl p-6 shadow-sm'>
       <p class='text-slate-500 text-sm'>低价告警</p>
-      <p class='text-4xl font-bold mt-2'>{{ alerts }}</p>
+      <p class='text-4xl font-bold mt-2'>{{ alerts_count }}</p>
     </div>
   </section>
-  <section class='bg-white rounded-2xl shadow-sm p-6'>
-    <h3 class='font-semibold mb-3'>快速操作</h3>
-    <div class='flex flex-wrap gap-3'>
-      <a href='/tasks/new' class='px-4 py-2 rounded-lg bg-blue-600 text-white'>新建任务</a>
-      <a href='/results' class='px-4 py-2 rounded-lg bg-slate-200'>查看低价票</a>
-      <a href='/provider-logs' class='px-4 py-2 rounded-lg bg-slate-200'>查看日志</a>
+
+  <section class='bg-white rounded-2xl shadow-sm p-4 md:p-6'>
+    <div class='flex flex-wrap gap-2 border-b pb-3'>
+      {% set active_tab = tab if tab in ['overview', 'new-task', 'tasks', 'results', 'history', 'logs'] else 'overview' %}
+      {% for t in [('overview','概览'), ('new-task','新建任务'), ('tasks','任务列表'), ('results','低价票结果'), ('history','价格历史'), ('logs','采集日志')] %}
+      <button type='button' data-tab='{{ t[0] }}' class='tab-btn px-3 py-2 rounded text-sm {{ "bg-slate-900 text-white" if active_tab == t[0] else "bg-slate-100 text-slate-700" }}'>{{ t[1] }}</button>
+      {% endfor %}
+    </div>
+
+    <div class='mt-4'>
+      <div data-panel='overview' class='tab-panel {{ "" if active_tab == "overview" else "hidden" }}'>
+        <h3 class='font-semibold mb-3'>快速操作</h3>
+        <div class='flex flex-wrap gap-3'>
+          <button type='button' data-switch='new-task' class='px-4 py-2 rounded-lg bg-blue-600 text-white'>新建任务</button>
+          <button type='button' data-switch='results' class='px-4 py-2 rounded-lg bg-slate-200'>查看低价票</button>
+          <button type='button' data-switch='logs' class='px-4 py-2 rounded-lg bg-slate-200'>查看日志</button>
+        </div>
+      </div>
+
+      <div data-panel='new-task' class='tab-panel {{ "" if active_tab == "new-task" else "hidden" }}'>
+        <h3 class='text-lg font-semibold mb-3'>新建任务</h3>
+        <form method='post' action='/tasks' class='grid grid-cols-1 md:grid-cols-2 gap-3'>
+          <input name='name' placeholder='名称' class='border p-2 rounded'>
+          <input name='origin_city' value='北京' class='border p-2 rounded'>
+          <input name='destination_city' value='武汉' class='border p-2 rounded'>
+          <input name='weekday' type='number' min='0' max='6' value='4' class='border p-2 rounded'>
+          <input name='time_start' value='18:00:00' class='border p-2 rounded'>
+          <input name='time_end' value='23:59:59' class='border p-2 rounded'>
+          <input name='max_price' type='number' value='500' class='border p-2 rounded'>
+          <label class='flex items-center gap-2'><input type='checkbox' name='enabled' checked>启用</label>
+          <button class='bg-blue-600 text-white p-2 rounded md:col-span-2'>保存任务</button>
+        </form>
+      </div>
+
+      <div data-panel='tasks' class='tab-panel {{ "" if active_tab == "tasks" else "hidden" }} overflow-auto'>
+        <table class='min-w-full text-sm'>
+          <thead class='bg-slate-100'><tr><th class='p-2 text-left'>名称</th><th class='p-2 text-left'>航线</th><th class='p-2 text-left'>阈值</th><th class='p-2 text-left'>状态</th><th class='p-2 text-left'>操作</th></tr></thead>
+          <tbody>
+            {% for t in tasks %}
+            <tr class='border-b'>
+              <td class='p-2'>{{ t.name }}</td><td class='p-2'>{{ t.origin_city }}→{{ t.destination_city }}</td><td class='p-2'>¥{{ t.max_price }}</td><td class='p-2'>{{ '启用' if t.enabled else '停用' }}</td>
+              <td class='p-2 space-x-2'>
+                <a class='text-blue-600' href='/tasks/{{t.id}}/edit'>编辑</a>
+                <form action='/tasks/{{t.id}}/run' method='post' class='inline'><button class='text-emerald-600'>立即检测</button></form>
+                <form action='/tasks/{{t.id}}/delete' method='post' class='inline'><button class='text-red-600'>删除</button></form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td class='p-3 text-slate-500' colspan='5'>暂无任务，请先创建。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div data-panel='results' class='tab-panel {{ "" if active_tab == "results" else "hidden" }} overflow-auto'>
+        <table class='min-w-full text-sm'>
+          <thead class='bg-slate-100'><tr><th class='text-left p-2'>时间</th><th class='text-left p-2'>航司</th><th class='text-left p-2'>航班</th><th class='text-left p-2'>航线</th><th class='text-left p-2'>出发</th><th class='text-left p-2'>价格</th></tr></thead>
+          <tbody>
+            {% for r in results %}
+            <tr class='border-b'><td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.airline }}（{{ r.provider }}）</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.depart_airport }}→{{ r.arrive_airport }}</td><td class='p-2'>{{ r.target_date }}</td><td class='p-2 font-semibold text-emerald-600'>¥{{ r.adult_price }}</td></tr>
+            {% else %}
+            <tr><td class='p-3 text-slate-500' colspan='6'>暂无低价票结果，请先运行任务。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div data-panel='history' class='tab-panel {{ "" if active_tab == "history" else "hidden" }} overflow-auto'>
+        <table class='min-w-full text-sm'>
+          <thead class='bg-slate-100'><tr><th class='text-left p-2'>时间</th><th class='text-left p-2'>渠道</th><th class='text-left p-2'>航班</th><th class='text-left p-2'>航线</th><th class='text-left p-2'>日期</th><th class='text-left p-2'>价格</th></tr></thead>
+          <tbody>
+            {% for r in history_rows %}
+            <tr class='border-b'><td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.provider }}</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.depart_airport }}→{{ r.arrive_airport }}</td><td class='p-2'>{{ r.target_date }}</td><td class='p-2'>¥{{ r.adult_price }}</td></tr>
+            {% else %}
+            <tr><td class='p-3 text-slate-500' colspan='6'>暂无历史数据。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div data-panel='logs' class='tab-panel {{ "" if active_tab == "logs" else "hidden" }} overflow-auto'>
+        <table class='min-w-full text-sm'>
+          <thead class='bg-slate-100'><tr><th class='text-left p-2'>时间</th><th class='text-left p-2'>渠道</th><th class='text-left p-2'>状态</th><th class='text-left p-2'>内容</th></tr></thead>
+          <tbody>
+            {% for r in logs %}
+            <tr class='border-b'><td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.provider }}</td><td class='p-2'>{{ r.status }}</td><td class='p-2'>{{ r.reason or ('耗时 ' ~ r.duration_ms ~ 'ms') }}</td></tr>
+            {% else %}
+            <tr><td class='p-3 text-slate-500' colspan='4'>暂无日志。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 </div>
+
+<script>
+  const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+  const panels = Array.from(document.querySelectorAll('.tab-panel'));
+  function switchTab(target) {
+    buttons.forEach(btn => {
+      const isActive = btn.dataset.tab === target;
+      btn.classList.toggle('bg-slate-900', isActive);
+      btn.classList.toggle('text-white', isActive);
+      btn.classList.toggle('bg-slate-100', !isActive);
+      btn.classList.toggle('text-slate-700', !isActive);
+    });
+    panels.forEach(panel => panel.classList.toggle('hidden', panel.dataset.panel !== target));
+    const u = new URL(window.location.href);
+    u.searchParams.set('tab', target);
+    history.replaceState(null, '', u);
+  }
+  buttons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+  document.querySelectorAll('[data-switch]').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.switch)));
+</script>
 {% endblock %}
