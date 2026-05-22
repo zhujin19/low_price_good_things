@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
@@ -86,6 +87,14 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     return RedirectResponse("/tasks", status_code=303)
 
 
+@app.post("/tasks/{task_id}/toggle")
+def toggle_task(task_id: int, enabled: bool = Form(False), db: Session = Depends(get_db)):
+    task = db.get(MonitorTask, task_id)
+    task.enabled = enabled
+    db.commit()
+    return RedirectResponse("/tasks", status_code=303)
+
+
 @app.post("/tasks/{task_id}/run")
 def run_now(task_id: int, db: Session = Depends(get_db)):
     task = db.get(MonitorTask, task_id)
@@ -94,8 +103,28 @@ def run_now(task_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/results")
-def results(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse("results.html", {"request": request, "rows": db.query(FlightPrice).order_by(FlightPrice.id.desc()).limit(200).all()})
+def results(
+    request: Request,
+    sort: str = Query(default="latest"),
+    db: Session = Depends(get_db),
+):
+    order_by = {
+        "price_desc": [desc(FlightPrice.adult_price), desc(FlightPrice.id)],
+        "price_asc": [FlightPrice.adult_price.asc(), desc(FlightPrice.id)],
+        "latest": [desc(FlightPrice.id)],
+    }.get(sort, [desc(FlightPrice.id)])
+    rows = db.query(FlightPrice).order_by(*order_by).limit(200).all()
+    top_rows = db.query(FlightPrice).order_by(FlightPrice.adult_price.asc(), desc(FlightPrice.id)).limit(3).all()
+    top_ranks = {row.id: index + 1 for index, row in enumerate(top_rows)}
+    return templates.TemplateResponse(
+        "results.html",
+        {
+            "request": request,
+            "rows": rows,
+            "sort": sort,
+            "top_ranks": top_ranks,
+        },
+    )
 
 
 @app.get("/history")

@@ -10,12 +10,12 @@
   {% set path = request.url.path %}
   <header class='bg-white border-b border-slate-200 px-4 md:px-8 py-3 shadow-sm'>
     <div class='max-w-[1600px] mx-auto flex flex-col gap-3 md:flex-row md:items-center'>
-      <nav class='flex flex-wrap gap-1 text-sm order-1'>
+      <h1 class='text-lg font-semibold text-slate-900'>机票监控助手</h1>
+      <nav class='flex flex-wrap gap-1 text-sm md:ml-4'>
         {% for href, label in [('/', '概览'), ('/tasks', '任务'), ('/results', '低价票'), ('/history', '历史'), ('/provider-logs', '日志'), ('/settings', '设置')] %}
         <a class='px-3 py-2 rounded-md {{ "bg-slate-900 text-white" if (path == href or (href != "/" and path.startswith(href))) else "text-slate-600 hover:bg-slate-100 hover:text-slate-900" }}' href='{{ href }}'>{{ label }}</a>
         {% endfor %}
       </nav>
-      <h1 class='text-lg font-semibold text-slate-900 md:ml-4 order-2'>低价票助手</h1>
     </div>
   </header>
 

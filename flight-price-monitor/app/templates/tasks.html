@@ -8,7 +8,7 @@
   </div>
   <div class='bg-white rounded-lg border border-slate-200 shadow-sm p-4 overflow-auto'>
     <table class='min-w-full text-sm'>
-      <thead class='bg-slate-100'><tr><th class='p-2 text-left'>名称</th><th class='p-2 text-left'>航线</th><th class='p-2 text-left'>时间</th><th class='p-2 text-left'>阈值</th><th class='p-2 text-left'>状态</th><th class='p-2 text-left'>操作</th></tr></thead>
+      <thead class='bg-slate-100'><tr><th class='p-2 text-left'>名称</th><th class='p-2 text-left'>航线</th><th class='p-2 text-left'>时间</th><th class='p-2 text-left'>阈值</th><th class='p-2 text-left'>任务状态</th><th class='p-2 text-left'>操作</th></tr></thead>
       <tbody>
         {% for t in tasks %}
         <tr class='border-b'>
@@ -16,7 +16,16 @@
           <td class='p-2'>{{ t.origin_city }}→{{ t.destination_city }}</td>
           <td class='p-2'>周{{ ['一','二','三','四','五','六','日'][t.weekday] }} {{ t.time_start[:5] }}-{{ t.time_end[:5] }}</td>
           <td class='p-2'>¥{{ t.max_price }}</td>
-          <td class='p-2'>{{ '启用' if t.enabled else '停用' }}</td>
+          <td class='p-2'>
+            <form action='/tasks/{{t.id}}/toggle' method='post' class='inline-flex items-center gap-2'>
+              <label class='relative inline-flex h-6 w-11 cursor-pointer items-center'>
+                <input type='checkbox' name='enabled' value='true' class='peer sr-only' onchange='this.form.submit()' {% if t.enabled %}checked{% endif %}>
+                <span class='h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-emerald-500'></span>
+                <span class='absolute left-1 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-5'></span>
+              </label>
+              <span class='text-xs {{ "text-emerald-700" if t.enabled else "text-slate-500" }}'>{{ '启用' if t.enabled else '停用' }}</span>
+            </form>
+          </td>
           <td class='p-2 space-x-2'>
             <a class='text-blue-600' href='/tasks/{{t.id}}/edit'>编辑</a>
             <form action='/tasks/{{t.id}}/run' method='post' class='inline'><button class='text-emerald-600'>立即检测</button></form>

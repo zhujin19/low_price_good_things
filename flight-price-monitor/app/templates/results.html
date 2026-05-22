@@ -4,7 +4,11 @@
 <section class='bg-white rounded-lg border border-slate-200 shadow-sm p-5'>
   <div class='flex items-center justify-between mb-4'>
     <h2 class='text-xl font-semibold'>低价票结果</h2>
-    <span class='text-sm text-slate-500'>最近 200 条</span>
+    <div class='flex items-center gap-2'>
+      <a class='rounded-md px-3 py-2 text-sm {{ "bg-slate-900 text-white" if sort == "latest" else "bg-slate-100 text-slate-700 hover:bg-slate-200" }}' href='/results?sort=latest'>最新</a>
+      <a class='rounded-md px-3 py-2 text-sm {{ "bg-slate-900 text-white" if sort == "price_asc" else "bg-slate-100 text-slate-700 hover:bg-slate-200" }}' href='/results?sort=price_asc'>价格升序</a>
+      <a class='rounded-md px-3 py-2 text-sm {{ "bg-slate-900 text-white" if sort == "price_desc" else "bg-slate-100 text-slate-700 hover:bg-slate-200" }}' href='/results?sort=price_desc'>价格降序</a>
+    </div>
   </div>
   <div class='overflow-auto'>
     <table class='min-w-full text-sm'>
@@ -16,7 +20,16 @@
       <tbody>
         {% for r in rows %}
         <tr class='border-b'>
-          <td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.airline }}（{{ r.provider }}）</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.depart_airport }}→{{ r.arrive_airport }}</td><td class='p-2'>{{ r.target_date }}</td><td class='p-2'>{{ r.depart_time }}-{{ r.arrive_time }}</td><td class='p-2 font-semibold text-emerald-600'>¥{{ r.adult_price }}</td><td class='p-2'><a class='text-blue-600' href='{{ r.booking_url }}' target='_blank'>携程</a></td>
+          <td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.airline }}（{{ r.provider }}）</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.depart_airport }}→{{ r.arrive_airport }}</td><td class='p-2'>{{ r.target_date }}</td><td class='p-2'>{{ r.depart_time }}-{{ r.arrive_time }}</td>
+          <td class='p-2'>
+            <div class='flex items-center gap-2'>
+              <span class='font-semibold text-emerald-600'>¥{{ r.adult_price }}</span>
+              {% if top_ranks.get(r.id) %}
+              <span class='rounded-full px-2 py-0.5 text-xs font-semibold {{ "bg-amber-100 text-amber-800" if top_ranks.get(r.id) == 1 else ("bg-slate-200 text-slate-800" if top_ranks.get(r.id) == 2 else "bg-orange-100 text-orange-800") }}'>TOP{{ top_ranks.get(r.id) }}</span>
+              {% endif %}
+            </div>
+          </td>
+          <td class='p-2'><a class='text-blue-600' href='{{ r.booking_url }}' target='_blank'>携程</a></td>
         </tr>
         {% else %}
         <tr><td class='p-3 text-slate-500' colspan='8'>暂无低价票结果，请先运行任务。</td></tr>
