@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,8 +12,9 @@ from app.scheduler.jobs import start_scheduler
 from app.services.monitor_service import run_check
 
 app = FastAPI(title="Flight Price Monitor")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = Path(__file__).resolve().parent
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
 @app.on_event("startup")
