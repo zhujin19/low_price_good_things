@@ -1,1 +1,28 @@
-{% extends 'base.html' %}{% block content %}<h1>results</h1>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}低价票{% endblock %}
+{% block content %}
+<section class='bg-white rounded-2xl shadow-sm p-6'>
+  <div class='flex items-center justify-between mb-4'>
+    <h2 class='text-xl font-bold'>低价票结果</h2>
+    <span class='text-sm text-slate-500'>最近 200 条</span>
+  </div>
+  <div class='overflow-auto'>
+    <table class='min-w-full text-sm'>
+      <thead class='bg-slate-100'>
+        <tr>
+          <th class='text-left p-2'>时间</th><th class='text-left p-2'>航司</th><th class='text-left p-2'>航班</th><th class='text-left p-2'>航线</th><th class='text-left p-2'>出发</th><th class='text-left p-2'>价格</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class='border-b'>
+          <td class='p-2'>{{ r.found_at }}</td><td class='p-2'>{{ r.provider }}</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.origin_city }}→{{ r.destination_city }}</td><td class='p-2'>{{ r.depart_date }}</td><td class='p-2 font-semibold text-emerald-600'>¥{{ r.price }}</td>
+        </tr>
+        {% else %}
+        <tr><td class='p-3 text-slate-500' colspan='6'>暂无低价票结果，请先运行任务。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,1 +1,37 @@
-<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><script src='https://cdn.tailwindcss.com'></script><script src='https://unpkg.com/htmx.org@1.9.12'></script></head><body class='bg-gray-50'><nav class='p-4 bg-blue-600 text-white flex gap-4 flex-wrap'><a href='/'>Dashboard</a><a href='/tasks'>任务</a><a href='/results'>低价票</a><a href='/history'>历史</a><a href='/provider-logs'>日志</a><a href='/settings'>设置</a></nav><main class='p-4 max-w-6xl mx-auto'>{% block content %}{% endblock %}</main></body></html>
+<!doctype html>
+<html lang='zh-CN'>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width,initial-scale=1'>
+  <title>{% block title %}低价机票监控{% endblock %}</title>
+  <script src='https://cdn.tailwindcss.com'></script>
+</head>
+<body class='min-h-screen bg-slate-100 text-slate-800'>
+  <div class='flex min-h-screen'>
+    <aside class='hidden md:flex w-64 shrink-0 flex-col bg-slate-900 text-slate-100 p-5'>
+      <h1 class='text-xl font-bold mb-6'>低价票助手</h1>
+      <nav class='space-y-2 text-sm'>
+        <a class='block px-3 py-2 rounded hover:bg-slate-800' href='/'>Dashboard</a>
+        <a class='block px-3 py-2 rounded hover:bg-slate-800' href='/tasks'>任务</a>
+        <a class='block px-3 py-2 rounded hover:bg-slate-800' href='/results'>低价票</a>
+        <a class='block px-3 py-2 rounded hover:bg-slate-800' href='/history'>历史</a>
+        <a class='block px-3 py-2 rounded hover:bg-slate-800' href='/provider-logs'>日志</a>
+        <a class='block px-3 py-2 rounded hover:bg-slate-800' href='/settings'>设置</a>
+      </nav>
+      <p class='mt-auto text-xs text-slate-400'>简洁高效，专注关键决策。</p>
+    </aside>
+
+    <main class='flex-1 p-4 md:p-8'>
+      <nav class='md:hidden mb-4 flex flex-wrap gap-2 text-sm'>
+        <a class='px-3 py-1 bg-white rounded border' href='/'>Dashboard</a>
+        <a class='px-3 py-1 bg-white rounded border' href='/tasks'>任务</a>
+        <a class='px-3 py-1 bg-white rounded border' href='/results'>低价票</a>
+        <a class='px-3 py-1 bg-white rounded border' href='/history'>历史</a>
+        <a class='px-3 py-1 bg-white rounded border' href='/provider-logs'>日志</a>
+        <a class='px-3 py-1 bg-white rounded border' href='/settings'>设置</a>
+      </nav>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>
