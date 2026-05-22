@@ -1,25 +1,25 @@
 {% extends 'base.html' %}
 {% block title %}低价票{% endblock %}
 {% block content %}
-<section class='bg-white rounded-2xl shadow-sm p-6'>
+<section class='bg-white rounded-lg border border-slate-200 shadow-sm p-5'>
   <div class='flex items-center justify-between mb-4'>
-    <h2 class='text-xl font-bold'>低价票结果</h2>
+    <h2 class='text-xl font-semibold'>低价票结果</h2>
     <span class='text-sm text-slate-500'>最近 200 条</span>
   </div>
   <div class='overflow-auto'>
     <table class='min-w-full text-sm'>
       <thead class='bg-slate-100'>
         <tr>
-          <th class='text-left p-2'>时间</th><th class='text-left p-2'>航司</th><th class='text-left p-2'>航班</th><th class='text-left p-2'>航线</th><th class='text-left p-2'>出发</th><th class='text-left p-2'>价格</th>
+          <th class='text-left p-2'>采集时间</th><th class='text-left p-2'>航司</th><th class='text-left p-2'>航班</th><th class='text-left p-2'>航线</th><th class='text-left p-2'>出发</th><th class='text-left p-2'>起抵</th><th class='text-left p-2'>价格</th><th class='text-left p-2'>链接</th>
         </tr>
       </thead>
       <tbody>
         {% for r in rows %}
         <tr class='border-b'>
-          <td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.airline }}（{{ r.provider }}）</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.depart_airport }}→{{ r.arrive_airport }}</td><td class='p-2'>{{ r.target_date }}</td><td class='p-2 font-semibold text-emerald-600'>¥{{ r.adult_price }}</td>
+          <td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.airline }}（{{ r.provider }}）</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.depart_airport }}→{{ r.arrive_airport }}</td><td class='p-2'>{{ r.target_date }}</td><td class='p-2'>{{ r.depart_time }}-{{ r.arrive_time }}</td><td class='p-2 font-semibold text-emerald-600'>¥{{ r.adult_price }}</td><td class='p-2'><a class='text-blue-600' href='{{ r.booking_url }}' target='_blank'>携程</a></td>
         </tr>
         {% else %}
-        <tr><td class='p-3 text-slate-500' colspan='6'>暂无低价票结果，请先运行任务。</td></tr>
+        <tr><td class='p-3 text-slate-500' colspan='8'>暂无低价票结果，请先运行任务。</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -1,40 +1,219 @@
 from datetime import date
+import os
+import re
+import shutil
+
 import httpx
 from playwright.sync_api import sync_playwright
+
 from app.config import settings
 from app.providers.base import BaseFlightProvider
 
-SELECTORS = {
-    "flight_cards": '[data-testid="flightInfo"]',
-    "price": '[data-testid="price"]',
-    "flight_no": '[data-testid="flightNo"]',
+
+CITY_CODES = {
+    "北京": "bjs",
+    "武汉": "wuh",
+    "上海": "sha",
+    "广州": "can",
+    "深圳": "szx",
+    "成都": "ctu",
+    "杭州": "hgh",
+    "南京": "nkg",
+    "重庆": "ckg",
+    "西安": "sia",
 }
+
+SYSTEM_BROWSER_CANDIDATES = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+]
 
 
 class CtripProvider(BaseFlightProvider):
     name = "ctrip"
 
     def search(self, origin: str, destination: str, target_date: date) -> list[dict]:
-        if (origin, destination) not in [("北京", "武汉"), ("武汉", "北京")]:
-            return []
         if settings.ctrip_api_url and settings.ctrip_api_key:
             return self._search_by_api(origin, destination, target_date)
         return self._search_by_playwright(origin, destination, target_date)
 
     def _search_by_api(self, origin: str, destination: str, target_date: date) -> list[dict]:
-        resp = httpx.get(settings.ctrip_api_url, headers={"Authorization": f"Bearer {settings.ctrip_api_key}"}, params={"origin": origin, "destination": destination, "date": target_date.isoformat()}, timeout=settings.ctrip_api_timeout)
+        resp = httpx.get(
+            settings.ctrip_api_url,
+            headers={"Authorization": f"Bearer {settings.ctrip_api_key}"},
+            params={
+                "origin": origin,
+                "destination": destination,
+                "date": target_date.isoformat(),
+            },
+            timeout=settings.ctrip_api_timeout,
+        )
         resp.raise_for_status()
         return [self._normalize(x) for x in resp.json().get("flights", [])]
 
     def _search_by_playwright(self, origin: str, destination: str, target_date: date) -> list[dict]:
-        url = f"https://flights.ctrip.com/online/list/oneway-{origin}-{destination}?date={target_date.isoformat()}"
+        urls = self._build_urls(origin, destination, target_date)
+        launch_options = {"headless": settings.playwright_headless}
+        executable_path = settings.playwright_executable_path or self._find_system_browser()
+        if executable_path:
+            launch_options["executable_path"] = executable_path
+
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=settings.playwright_headless)
-            page = browser.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=settings.playwright_timeout_ms)
-            page.wait_for_timeout(3000)
+            browser = p.chromium.launch(**launch_options)
+            page = browser.new_page(
+                viewport={"width": 1440, "height": 1200},
+                user_agent=(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                ),
+            )
+            rows = []
+            booking_url = urls[0]
+            for url in urls:
+                page.goto(url, wait_until="domcontentloaded", timeout=settings.playwright_timeout_ms)
+                page.wait_for_timeout(8000)
+                if page.locator(".flight-item.domestic").count() == 0:
+                    continue
+                booking_url = page.url
+                rows = page.eval_on_selector_all(".flight-item.domestic", self._dom_extract_script())
+                if rows:
+                    break
             browser.close()
-        return [{"provider": self.name, "flight_no": "UNKNOWN", "airline": "UNKNOWN", "depart_airport": f"{origin}机场", "arrive_airport": f"{destination}机场", "depart_time": "00:00", "arrive_time": "00:00", "adult_price": 99999, "booking_url": url}]
+
+        flights = [self._normalize_dom_row(row, booking_url) for row in rows]
+        return [row for row in flights if row is not None]
+
+    def _build_urls(self, origin: str, destination: str, target_date: date) -> list[str]:
+        origin_code = self._city_code(origin)
+        destination_code = self._city_code(destination)
+        date_text = target_date.isoformat()
+        return [
+            (
+                "https://flights.ctrip.com/online/list/"
+                f"oneway-{origin_code}-{destination_code}"
+                f"?depdate={date_text}&cabin=y_s_c_f&adult=1&child=0&infant=0"
+            ),
+            f"https://flights.ctrip.com/online/list/oneway-{origin_code}-{destination_code}?_=1&depdate={date_text}",
+            f"https://flights.ctrip.com/itinerary/oneway/{origin_code}-{destination_code}?date={date_text}",
+        ]
+
+    def _build_url(self, origin: str, destination: str, target_date: date) -> str:
+        return self._build_urls(origin, destination, target_date)[0]
+
+    def _dom_extract_script(self) -> str:
+        return """
+        items => items.map(item => {
+          const text = item.innerText || "";
+          const query = selector => item.querySelector(selector);
+          const timeNodes = Array.from(item.querySelectorAll(".time")).map(x => (x.innerText || "").trim());
+          const airportNodes = Array.from(item.querySelectorAll(".airport .name")).map(x => (x.innerText || "").trim());
+          const planeNode = query(".plane-No");
+          const airlineNode = query(".airline-name span");
+          const comfortNode = query("[id^='comfort-']");
+          const flightInfoNode = query("[id^='flightInfo-']");
+          const priceNode = query(".price .price") || query(".price");
+          return {
+            text,
+            html: item.outerHTML,
+            airline: (query(".airline-name")?.innerText || "").trim(),
+            flightNoText: (planeNode?.innerText || "").trim(),
+            flightNoId: [
+              airlineNode?.id || "",
+              comfortNode?.id || "",
+              flightInfoNode?.id || ""
+            ].join(" "),
+            departTime: timeNodes[0] || "",
+            arriveTime: timeNodes[1] || "",
+            departAirport: airportNodes[0] || "",
+            arriveAirport: airportNodes[1] || "",
+            priceText: (priceNode?.innerText || "").trim()
+          };
+        })
+        """
+
+    def _city_code(self, city: str) -> str:
+        code = CITY_CODES.get(city.strip())
+        if not code:
+            raise ValueError(f"携程暂未配置城市代码: {city}")
+        return code
+
+    def _find_system_browser(self) -> str | None:
+        if chrome := shutil.which("google-chrome"):
+            return chrome
+        if chromium := shutil.which("chromium"):
+            return chromium
+        for path in SYSTEM_BROWSER_CANDIDATES:
+            if os.path.exists(path):
+                return path
+        return None
+
+    def _normalize_dom_row(self, row: dict, booking_url: str) -> dict | None:
+        price = self._extract_int(row.get("priceText", ""))
+        if price is None:
+            price = self._extract_int(row.get("text", ""))
+        if price is None:
+            return None
+
+        flight_no = (
+            self._extract_flight_no(row.get("flightNoText", ""))
+            or self._extract_flight_no(row.get("flightNoId", ""))
+            or self._extract_flight_no(row.get("html", ""))
+        )
+        airline = row.get("airline") or self._first_line(row.get("text", "")) or "UNKNOWN"
+        depart_time = self._normalize_time(row.get("departTime", ""))
+        arrive_time = self._normalize_time(row.get("arriveTime", ""))
+        if not depart_time:
+            depart_time = self._extract_time(row.get("text", ""), index=0)
+        if not arrive_time:
+            arrive_time = self._extract_time(row.get("text", ""), index=1)
+
+        return {
+            "provider": self.name,
+            "flight_no": flight_no or "UNKNOWN",
+            "airline": airline,
+            "depart_airport": row.get("departAirport") or "",
+            "arrive_airport": row.get("arriveAirport") or "",
+            "depart_time": depart_time,
+            "arrive_time": arrive_time,
+            "adult_price": price,
+            "booking_url": booking_url,
+        }
 
     def _normalize(self, row: dict) -> dict:
-        return {"provider": self.name, "flight_no": row.get("flight_no", ""), "airline": row.get("airline", ""), "depart_airport": row.get("depart_airport", ""), "arrive_airport": row.get("arrive_airport", ""), "depart_time": row.get("depart_time", ""), "arrive_time": row.get("arrive_time", ""), "adult_price": int(row.get("adult_price", 0)), "booking_url": row.get("booking_url", "")}
+        return {
+            "provider": self.name,
+            "flight_no": row.get("flight_no", ""),
+            "airline": row.get("airline", ""),
+            "depart_airport": row.get("depart_airport", ""),
+            "arrive_airport": row.get("arrive_airport", ""),
+            "depart_time": self._normalize_time(row.get("depart_time", "")),
+            "arrive_time": self._normalize_time(row.get("arrive_time", "")),
+            "adult_price": int(row.get("adult_price", 0)),
+            "booking_url": row.get("booking_url", ""),
+        }
+
+    def _extract_int(self, value: str) -> int | None:
+        match = re.search(r"[¥￥]?\s*(\d+)", value or "")
+        return int(match.group(1)) if match else None
+
+    def _extract_flight_no(self, value: str) -> str | None:
+        match = re.search(r"([A-Z]{2}\d{3,5})", value or "")
+        return match.group(1) if match else None
+
+    def _extract_time(self, value: str, index: int) -> str:
+        matches = re.findall(r"\b\d{1,2}:\d{2}\b", value or "")
+        if len(matches) <= index:
+            return ""
+        return self._normalize_time(matches[index])
+
+    def _normalize_time(self, value: str) -> str:
+        value = (value or "").strip()
+        match = re.search(r"\b(\d{1,2}:\d{2})\b", value)
+        if not match:
+            return ""
+        hour, minute = match.group(1).split(":")
+        return f"{int(hour):02d}:{minute}"
+
+    def _first_line(self, value: str) -> str:
+        return next((line.strip() for line in (value or "").splitlines() if line.strip()), "")

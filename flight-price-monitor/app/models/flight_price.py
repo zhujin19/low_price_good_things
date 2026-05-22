@@ -1,11 +1,14 @@
 from datetime import date, datetime
+
 from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.database import Base
 
 
 class FlightPrice(Base):
     __tablename__ = "flight_prices"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("monitor_tasks.id"))
     provider: Mapped[str] = mapped_column(String(50), nullable=False)

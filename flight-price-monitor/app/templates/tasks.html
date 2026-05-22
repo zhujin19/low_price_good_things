@@ -3,17 +3,18 @@
 {% block content %}
 <section class='space-y-4'>
   <div class='flex items-center justify-between'>
-    <h2 class='text-xl font-bold'>监控任务</h2>
-    <a class='bg-blue-600 text-white px-4 py-2 rounded-lg' href='/tasks/new'>新增任务</a>
+    <h2 class='text-xl font-semibold'>监控任务</h2>
+    <a class='bg-blue-600 text-white px-4 py-2 rounded-md text-sm' href='/tasks/new'>新增任务</a>
   </div>
-  <div class='bg-white rounded-2xl shadow-sm p-4 overflow-auto'>
+  <div class='bg-white rounded-lg border border-slate-200 shadow-sm p-4 overflow-auto'>
     <table class='min-w-full text-sm'>
-      <thead class='bg-slate-100'><tr><th class='p-2 text-left'>名称</th><th class='p-2 text-left'>航线</th><th class='p-2 text-left'>阈值</th><th class='p-2 text-left'>状态</th><th class='p-2 text-left'>操作</th></tr></thead>
+      <thead class='bg-slate-100'><tr><th class='p-2 text-left'>名称</th><th class='p-2 text-left'>航线</th><th class='p-2 text-left'>时间</th><th class='p-2 text-left'>阈值</th><th class='p-2 text-left'>状态</th><th class='p-2 text-left'>操作</th></tr></thead>
       <tbody>
         {% for t in tasks %}
         <tr class='border-b'>
           <td class='p-2'>{{ t.name }}</td>
           <td class='p-2'>{{ t.origin_city }}→{{ t.destination_city }}</td>
+          <td class='p-2'>周{{ ['一','二','三','四','五','六','日'][t.weekday] }} {{ t.time_start[:5] }}-{{ t.time_end[:5] }}</td>
           <td class='p-2'>¥{{ t.max_price }}</td>
           <td class='p-2'>{{ '启用' if t.enabled else '停用' }}</td>
           <td class='p-2 space-x-2'>
@@ -23,7 +24,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td class='p-3 text-slate-500' colspan='5'>暂无任务，请先创建。</td></tr>
+        <tr><td class='p-3 text-slate-500' colspan='6'>暂无任务，请先创建。</td></tr>
         {% endfor %}
       </tbody>
     </table>

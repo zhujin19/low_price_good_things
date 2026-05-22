@@ -1,1 +1,52 @@
-{% extends 'base.html' %}{% block content %}<form method='post' action='{{ "/tasks/" ~ task.id ~ "/update" if task else "/tasks" }}' class='grid grid-cols-1 md:grid-cols-2 gap-3'><input name='name' placeholder='名称' value='{{task.name if task}}' class='border p-2'><input name='origin_city' value='{{task.origin_city if task else "北京"}}' class='border p-2'><input name='destination_city' value='{{task.destination_city if task else "武汉"}}' class='border p-2'><input name='weekday' type='number' min='0' max='6' value='{{task.weekday if task else 4}}' class='border p-2'><input name='time_start' value='{{task.time_start if task else "18:00:00"}}' class='border p-2'><input name='time_end' value='{{task.time_end if task else "23:59:59"}}' class='border p-2'><input name='max_price' type='number' value='{{task.max_price if task else 500}}' class='border p-2'><label><input type='checkbox' name='enabled' {% if not task or task.enabled %}checked{% endif %}>启用</label><button class='bg-blue-600 text-white p-2 rounded'>保存</button></form>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}{{ '编辑任务' if task else '新增任务' }}{% endblock %}
+{% block content %}
+<section class="mx-auto max-w-3xl bg-white rounded-lg shadow-sm border border-slate-200 p-5">
+  <div class="flex items-center justify-between gap-3 mb-5">
+    <h2 class="text-xl font-semibold">{{ '编辑任务' if task else '新增任务' }}</h2>
+    <a class="text-sm text-slate-500 hover:text-slate-900" href="/tasks">返回任务</a>
+  </div>
+  <form method="post" action="{{ '/tasks/' ~ task.id ~ '/update' if task else '/tasks' }}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <label class="space-y-1 md:col-span-2">
+      <span class="text-sm text-slate-600">任务名称</span>
+      <input name="name" required placeholder="北京到武汉周五晚" value="{{ task.name if task else '' }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
+    </label>
+    <label class="space-y-1">
+      <span class="text-sm text-slate-600">出发城市</span>
+      <input name="origin_city" required value="{{ task.origin_city if task else '北京' }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
+    </label>
+    <label class="space-y-1">
+      <span class="text-sm text-slate-600">到达城市</span>
+      <input name="destination_city" required value="{{ task.destination_city if task else '武汉' }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
+    </label>
+    <label class="space-y-1">
+      <span class="text-sm text-slate-600">星期</span>
+      <select name="weekday" class="w-full border border-slate-300 rounded-md px-3 py-2">
+        {% for i, label in [(0,'周一'),(1,'周二'),(2,'周三'),(3,'周四'),(4,'周五'),(5,'周六'),(6,'周日')] %}
+        <option value="{{ i }}" {% if (task and task.weekday == i) or (not task and i == 4) %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="space-y-1">
+      <span class="text-sm text-slate-600">最高价格</span>
+      <input name="max_price" type="number" min="1" required value="{{ task.max_price if task else 500 }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
+    </label>
+    <label class="space-y-1">
+      <span class="text-sm text-slate-600">起飞开始</span>
+      <input name="time_start" type="time" required value="{{ (task.time_start[:5] if task else '18:00') }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
+    </label>
+    <label class="space-y-1">
+      <span class="text-sm text-slate-600">起飞结束</span>
+      <input name="time_end" type="time" required value="{{ (task.time_end[:5] if task else '23:59') }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
+    </label>
+    <label class="flex items-center gap-2 md:col-span-2 text-sm text-slate-700">
+      <input type="checkbox" name="enabled" {% if not task or task.enabled %}checked{% endif %}>
+      启用任务
+    </label>
+    <div class="md:col-span-2 flex justify-end gap-2">
+      <a href="/tasks" class="px-4 py-2 rounded-md border border-slate-300 text-slate-700">取消</a>
+      <button class="px-4 py-2 rounded-md bg-blue-600 text-white">保存</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
