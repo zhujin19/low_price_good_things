@@ -1,1 +1,28 @@
-{% extends 'base.html' %}{% block content %}<div class='grid grid-cols-1 md:grid-cols-2 gap-4'><div class='bg-white p-4 rounded'>任务数: {{tasks}}</div><div class='bg-white p-4 rounded'>告警数: {{alerts}}</div></div>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class='space-y-6'>
+  <section class='bg-white rounded-2xl shadow-sm p-6'>
+    <h2 class='text-2xl font-bold'>智能低价票监控面板</h2>
+    <p class='text-slate-500 mt-2'>从“任务配置 → 自动巡检 → 低价提醒”一站式闭环管理。</p>
+  </section>
+  <section class='grid grid-cols-1 md:grid-cols-2 gap-4'>
+    <div class='bg-white rounded-2xl p-6 shadow-sm'>
+      <p class='text-slate-500 text-sm'>监控任务</p>
+      <p class='text-4xl font-bold mt-2'>{{ tasks }}</p>
+    </div>
+    <div class='bg-white rounded-2xl p-6 shadow-sm'>
+      <p class='text-slate-500 text-sm'>低价告警</p>
+      <p class='text-4xl font-bold mt-2'>{{ alerts }}</p>
+    </div>
+  </section>
+  <section class='bg-white rounded-2xl shadow-sm p-6'>
+    <h3 class='font-semibold mb-3'>快速操作</h3>
+    <div class='flex flex-wrap gap-3'>
+      <a href='/tasks/new' class='px-4 py-2 rounded-lg bg-blue-600 text-white'>新建任务</a>
+      <a href='/results' class='px-4 py-2 rounded-lg bg-slate-200'>查看低价票</a>
+      <a href='/provider-logs' class='px-4 py-2 rounded-lg bg-slate-200'>查看日志</a>
+    </div>
+  </section>
+</div>
+{% endblock %}

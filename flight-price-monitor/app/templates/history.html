@@ -1,1 +1,24 @@
-{% extends 'base.html' %}{% block content %}<h1>history</h1>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}历史{% endblock %}
+{% block content %}
+<section class='bg-white rounded-2xl shadow-sm p-6'>
+  <h2 class='text-xl font-bold mb-4'>价格历史</h2>
+  <p class='text-sm text-slate-500 mb-4'>展示最近 500 条价格记录，用于趋势追踪。</p>
+  <div class='overflow-auto'>
+    <table class='min-w-full text-sm'>
+      <thead class='bg-slate-100'>
+        <tr><th class='text-left p-2'>时间</th><th class='text-left p-2'>渠道</th><th class='text-left p-2'>航班</th><th class='text-left p-2'>航线</th><th class='text-left p-2'>日期</th><th class='text-left p-2'>价格</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class='border-b'>
+          <td class='p-2'>{{ r.found_at }}</td><td class='p-2'>{{ r.provider }}</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.origin_city }}→{{ r.destination_city }}</td><td class='p-2'>{{ r.depart_date }}</td><td class='p-2'>¥{{ r.price }}</td>
+        </tr>
+        {% else %}
+        <tr><td class='p-3 text-slate-500' colspan='6'>暂无历史数据。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
