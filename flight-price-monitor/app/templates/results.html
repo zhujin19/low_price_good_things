@@ -16,7 +16,7 @@
       <tbody>
         {% for r in rows %}
         <tr class='border-b'>
-          <td class='p-2'>{{ r.found_at }}</td><td class='p-2'>{{ r.provider }}</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.origin_city }}→{{ r.destination_city }}</td><td class='p-2'>{{ r.depart_date }}</td><td class='p-2 font-semibold text-emerald-600'>¥{{ r.price }}</td>
+          <td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.airline }}（{{ r.provider }}）</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.depart_airport }}→{{ r.arrive_airport }}</td><td class='p-2'>{{ r.target_date }}</td><td class='p-2 font-semibold text-emerald-600'>¥{{ r.adult_price }}</td>
         </tr>
         {% else %}
         <tr><td class='p-3 text-slate-500' colspan='6'>暂无低价票结果，请先运行任务。</td></tr>

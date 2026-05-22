@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, Request
+from fastapi import Depends, FastAPI, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -31,8 +31,21 @@ def startup_event():
 
 
 @app.get("/")
-def dashboard(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse("dashboard.html", {"request": request, "tasks": db.query(MonitorTask).count(), "alerts": db.query(Alert).count()})
+def dashboard(request: Request, tab: str = Query(default="overview"), db: Session = Depends(get_db)):
+    tasks = db.query(MonitorTask).order_by(MonitorTask.id.desc()).all()
+    results = db.query(FlightPrice).order_by(FlightPrice.id.desc()).limit(200).all()
+    history_rows = db.query(FlightPrice).order_by(FlightPrice.id.desc()).limit(500).all()
+    logs = db.query(ProviderLog).order_by(ProviderLog.id.desc()).limit(500).all()
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "tab": tab,
+        "tasks_count": len(tasks),
+        "alerts_count": db.query(Alert).count(),
+        "tasks": tasks,
+        "results": results,
+        "history_rows": history_rows,
+        "logs": logs,
+    })
 
 
 @app.get("/tasks")

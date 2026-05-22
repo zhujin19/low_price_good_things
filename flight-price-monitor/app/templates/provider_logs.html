@@ -11,7 +11,7 @@
       <tbody>
         {% for r in rows %}
         <tr class='border-b'>
-          <td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.provider }}</td><td class='p-2'>{{ r.level }}</td><td class='p-2'>{{ r.message }}</td>
+          <td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.provider }}</td><td class='p-2'>{{ r.status }}</td><td class='p-2'>{{ r.reason or ('耗时 ' ~ r.duration_ms ~ 'ms') }}</td>
         </tr>
         {% else %}
         <tr><td class='p-3 text-slate-500' colspan='4'>暂无日志。</td></tr>
