@@ -28,9 +28,14 @@ class ProviderService:
                 rows.extend(provider_rows)
                 status = "success"
                 reason = f"{target_date.isoformat()} returned {len(provider_rows)} flights"
+                diagnostics = getattr(provider, "last_diagnostics", None)
+                if diagnostics and diagnostics.get("mode") == "low_price_calendar" and provider_rows:
+                    reason = (
+                        f"{target_date.isoformat()} returned "
+                        f"{len(provider_rows)} Ctrip low-price calendar rows"
+                    )
                 if not provider_rows:
                     status = "no_results"
-                    diagnostics = getattr(provider, "last_diagnostics", None)
                     if diagnostics:
                         details = json.dumps(diagnostics, ensure_ascii=False, separators=(",", ":"))
                         reason = f"{reason}; diagnostics={details}"

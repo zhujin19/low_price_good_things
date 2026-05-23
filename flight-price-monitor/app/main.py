@@ -140,7 +140,13 @@ def results(
     groups = _price_groups(rows, sort)
     toast_message = None
     if notice == "run_complete" and task_name is not None and saved_count is not None:
-        toast_message = f"「{task_name}」检测完成，新增 {saved_count} 条低价票记录。"
+        if saved_count > 0:
+            toast_message = f"「{task_name}」检测完成，新增 {saved_count} 条低价票记录。"
+        else:
+            toast_message = (
+                f"「{task_name}」检测完成，未新增低价票。"
+                "可能是未命中阈值、携程暂无价格，或相同低价已记录；可查看采集日志。"
+            )
     return templates.TemplateResponse(
         "results.html",
         {

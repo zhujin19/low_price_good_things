@@ -3,3 +3,5 @@ __pycache__/
 .env
 flight_monitor.db
 results-page.png
+storage/
+*.storage-state.json

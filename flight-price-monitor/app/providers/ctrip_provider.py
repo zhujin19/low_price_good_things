@@ -1,7 +1,9 @@
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 import os
+from pathlib import Path
 import re
 import shutil
+import uuid
 
 import httpx
 from playwright.sync_api import sync_playwright
@@ -29,6 +31,11 @@ SYSTEM_BROWSER_CANDIDATES = [
     "/Applications/Chromium.app/Contents/MacOS/Chromium",
 ]
 
+LOW_PRICE_CALENDAR_URL = (
+    "https://m.ctrip.com/restapi/soa2/15380/bjjson/"
+    "FlightIntlAndInlandLowestPriceSearch"
+)
+
 
 class CtripProvider(BaseFlightProvider):
     name = "ctrip"
@@ -40,6 +47,33 @@ class CtripProvider(BaseFlightProvider):
         self.last_diagnostics = {}
         if settings.ctrip_api_url and settings.ctrip_api_key:
             return self._search_by_api(origin, destination, target_date)
+
+        if self._storage_state_path():
+            detail_rows = self._search_by_playwright(origin, destination, target_date)
+            if detail_rows:
+                return detail_rows
+            detail_diagnostics = self.last_diagnostics
+            calendar_rows = self._search_by_low_price_calendar(origin, destination, target_date)
+            if calendar_rows:
+                self.last_diagnostics = {
+                    "mode": "playwright_with_calendar_fallback",
+                    "playwright": detail_diagnostics,
+                    "fallback": self.last_diagnostics,
+                }
+                return calendar_rows
+            if self.last_diagnostics.get("reason") == "calendar_no_price":
+                self.last_diagnostics = {
+                    "mode": "playwright_with_calendar_fallback",
+                    "playwright": detail_diagnostics,
+                    "fallback": self.last_diagnostics,
+                }
+                return []
+
+        calendar_rows = self._search_by_low_price_calendar(origin, destination, target_date)
+        if calendar_rows:
+            return calendar_rows
+        if self.last_diagnostics.get("reason") == "calendar_no_price":
+            return []
         return self._search_by_playwright(origin, destination, target_date)
 
     def _search_by_api(self, origin: str, destination: str, target_date: date) -> list[dict]:
@@ -55,6 +89,99 @@ class CtripProvider(BaseFlightProvider):
         )
         resp.raise_for_status()
         return [self._normalize(x) for x in resp.json().get("flights", [])]
+
+    def _search_by_low_price_calendar(
+        self,
+        origin: str,
+        destination: str,
+        target_date: date,
+    ) -> list[dict]:
+        origin_code = self._city_code(origin).upper()
+        destination_code = self._city_code(destination).upper()
+        transaction_id = uuid.uuid4().hex
+        payload = {
+            "departNewCityCode": origin_code,
+            "arriveNewCityCode": destination_code,
+            "startDate": target_date.isoformat(),
+            "grade": 15,
+            "flag": 0,
+            "channelName": "FlightOnline",
+            "searchType": 1,
+            "passengerList": [
+                {"passengercount": 1, "passengertype": "Adult"},
+            ],
+            "calendarSelections": [
+                {"selectionType": 8, "selectionContent": ["15"]},
+            ],
+        }
+        try:
+            resp = httpx.post(
+                LOW_PRICE_CALENDAR_URL,
+                headers={
+                    "content-type": "application/json;charset=UTF-8",
+                    "referer": "https://flights.ctrip.com/",
+                    "transactionid": transaction_id,
+                    "user-agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    ),
+                },
+                json=payload,
+                timeout=settings.ctrip_api_timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            self.last_diagnostics = {
+                "mode": "low_price_calendar",
+                "status": "failed",
+                "reason": str(exc),
+            }
+            return []
+
+        price_list = data.get("priceList") or []
+        matched = self._find_calendar_price(price_list, target_date)
+        if not matched:
+            self.last_diagnostics = {
+                "mode": "low_price_calendar",
+                "status": "no_results",
+                "reason": "calendar_no_price",
+                "price_items": len(price_list),
+            }
+            return []
+
+        price = self._calendar_price(matched)
+        if price is None or price <= 0:
+            self.last_diagnostics = {
+                "mode": "low_price_calendar",
+                "status": "no_results",
+                "reason": "calendar_no_price",
+                "target_item": matched,
+            }
+            return []
+
+        booking_url = self._build_url(origin, destination, target_date)
+        self.last_diagnostics = {
+            "mode": "low_price_calendar",
+            "status": "success",
+            "target_date": target_date.isoformat(),
+            "price": price,
+            "detail": "date-level lowest price; flight time must be confirmed on Ctrip",
+        }
+        return [
+            {
+                "provider": self.name,
+                "flight_no": "日期最低价",
+                "airline": "携程低价日历",
+                "depart_airport": origin,
+                "arrive_airport": destination,
+                "depart_time": "待确认",
+                "arrive_time": "待确认",
+                "adult_price": price,
+                "booking_url": booking_url,
+                "price_scope": "date_lowest",
+            }
+        ]
 
     def _search_by_playwright(self, origin: str, destination: str, target_date: date) -> list[dict]:
         urls = self._build_urls(origin, destination, target_date)
@@ -72,15 +199,19 @@ class CtripProvider(BaseFlightProvider):
 
         with sync_playwright() as p:
             browser = p.chromium.launch(**launch_options)
-            context = browser.new_context(
-                viewport={"width": 1440, "height": 1200},
-                user_agent=(
+            storage_state_path = self._storage_state_path()
+            context_options = {
+                "viewport": {"width": 1440, "height": 1200},
+                "user_agent": (
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                 ),
-                locale="zh-CN",
-                timezone_id="Asia/Shanghai",
-            )
+                "locale": "zh-CN",
+                "timezone_id": "Asia/Shanghai",
+            }
+            if storage_state_path:
+                context_options["storage_state"] = str(storage_state_path)
+            context = browser.new_context(**context_options)
             context.add_init_script(
                 """
                 Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
@@ -142,6 +273,7 @@ class CtripProvider(BaseFlightProvider):
                 "mode": "playwright",
                 "headless": settings.playwright_headless,
                 "browser": executable_path or "playwright-chromium",
+                "storage_state": str(storage_state_path) if storage_state_path else None,
                 "batch_search": batch_search_status,
                 "pages": diagnostics[-3:],
             }
@@ -211,6 +343,12 @@ class CtripProvider(BaseFlightProvider):
                 return path
         return None
 
+    def _storage_state_path(self) -> Path | None:
+        if not settings.ctrip_storage_state_path:
+            return None
+        path = Path(settings.ctrip_storage_state_path)
+        return path if path.exists() else None
+
     def _normalize_dom_row(self, row: dict, booking_url: str) -> dict | None:
         price = self._extract_int(row.get("priceText", ""))
         if price is None:
@@ -255,6 +393,31 @@ class CtripProvider(BaseFlightProvider):
             "adult_price": int(row.get("adult_price", 0)),
             "booking_url": row.get("booking_url", ""),
         }
+
+    def _find_calendar_price(self, price_list: list[dict], target_date: date) -> dict | None:
+        for item in price_list:
+            if self._parse_ctrip_date(item.get("departDate")) == target_date:
+                return item
+        return None
+
+    def _parse_ctrip_date(self, value: str | None) -> date | None:
+        match = re.search(r"/Date\((\d+)", value or "")
+        if not match:
+            return None
+        timestamp = int(match.group(1)) / 1000
+        return datetime.fromtimestamp(
+            timestamp,
+            tz=timezone(timedelta(hours=8)),
+        ).date()
+
+    def _calendar_price(self, item: dict) -> int | None:
+        value = item.get("price") or item.get("transportPrice") or item.get("totalPrice")
+        if value in (None, ""):
+            return None
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
 
     def _extract_int(self, value: str) -> int | None:
         match = re.search(r"[¥￥]?\s*(\d+)", value or "")

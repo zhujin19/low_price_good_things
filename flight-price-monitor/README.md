@@ -80,8 +80,9 @@ cp .env.example .env
 
 - `CTRIP_API_URL`
 - `CTRIP_API_KEY`
+- `CTRIP_STORAGE_STATE_PATH`
 
-> 如未接入对应 Provider，可先保留默认值或按实际情况禁用相关任务。
+> 如未接入外部 Provider，可先保留 `CTRIP_API_URL` / `CTRIP_API_KEY` 为空。需要抓取携程航班明细时，建议配置 `CTRIP_STORAGE_STATE_PATH`。
 
 ### 5）启动服务
 
@@ -143,6 +144,35 @@ python3 scripts/init_db.py
 #### Ubuntu 执行成功但结果为空
 
 携程页面在无头浏览器下可能返回空航班列表或要求登录，表现为日志里 `returned 0 flights`。本项目已对无头模式增加浏览器特征兼容，并把 0 条结果标记为 `no_results`，日志会包含页面标题、最终 URL、是否出现“未找到符合条件的航班”、以及 `needUserLogin` 等诊断信息。
+
+当前版本支持两层携程抓取：
+
+1. 如配置了 `CTRIP_STORAGE_STATE_PATH` 且文件存在，会优先使用 Playwright 登录态打开携程机票页，抓取航班明细。
+2. 如果未配置登录态，或明细抓取没有返回航班，会回退调用携程低价日历接口抓取目标日期的日期级最低价。
+
+低价日历数据可以用于跑通低价监控和阈值告警，但不包含具体航班号与起飞时间；命中后结果会标记为“日期最低价 / 待确认”，用户需要打开携程链接确认具体航班。如果你接入了自己的 `CTRIP_API_URL` 和 `CTRIP_API_KEY`，系统仍会优先使用外部接口返回的航班明细数据。
+
+#### 保存携程登录态
+
+本项目不保存携程账号密码，只保存 Playwright storage state 文件。该文件包含登录 Cookie，必须只保存在本机或可信服务器，不要提交到 Git。
+
+```bash
+python3 scripts/save_ctrip_storage_state.py
+```
+
+脚本会打开携程登录页。完成登录后回到终端按 Enter，脚本会把登录态保存到 `.env` 中 `CTRIP_STORAGE_STATE_PATH` 指向的位置，默认是：
+
+```text
+storage/ctrip.storage-state.json
+```
+
+保存后重启服务，再手动触发任务：
+
+```bash
+curl -X POST http://127.0.0.1:8000/tasks/1/run
+```
+
+如果日志中仍出现 `needUserLogin: true`，说明登录态已失效或未覆盖携程机票域名，请重新运行脚本。
 
 如果 Ubuntu 仍然持续返回 0，可以改用虚拟显示器运行有头浏览器：
 

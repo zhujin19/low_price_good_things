@@ -9,6 +9,18 @@ from app.services.provider_service import ProviderService
 
 provider_service = ProviderService()
 
+FLIGHT_PRICE_FIELDS = {
+    "provider",
+    "flight_no",
+    "airline",
+    "depart_airport",
+    "arrive_airport",
+    "depart_time",
+    "arrive_time",
+    "adult_price",
+    "booking_url",
+}
+
 
 def run_check(db: Session, task: MonitorTask) -> int:
     saved_count = 0
@@ -25,7 +37,11 @@ def run_check(db: Session, task: MonitorTask) -> int:
                 continue
             if _already_saved(db, task.id, target_date, row):
                 continue
-            flight_price = FlightPrice(task_id=task.id, target_date=target_date, **row)
+            flight_price = FlightPrice(
+                task_id=task.id,
+                target_date=target_date,
+                **_flight_price_payload(row),
+            )
             db.add(flight_price)
             db.commit()
             db.refresh(flight_price)
@@ -34,7 +50,7 @@ def run_check(db: Session, task: MonitorTask) -> int:
                 db,
                 task.id,
                 flight_price.id,
-                f"命中低价: {row['flight_no']} {row['depart_time']} ¥{row['adult_price']}",
+                _alert_message(row),
             )
     return saved_count
 
@@ -47,10 +63,22 @@ def run_all_enabled_tasks(db: Session):
 def _matches_task(row: dict, task: MonitorTask) -> bool:
     if row.get("adult_price", 999999) > task.max_price:
         return False
+    if row.get("price_scope") == "date_lowest":
+        return True
     depart_time = row.get("depart_time") or ""
     if not depart_time:
         return False
     return _in_time_range(depart_time, task.time_start, task.time_end)
+
+
+def _flight_price_payload(row: dict) -> dict:
+    return {key: row.get(key, "") for key in FLIGHT_PRICE_FIELDS}
+
+
+def _alert_message(row: dict) -> str:
+    if row.get("price_scope") == "date_lowest":
+        return f"命中携程日期最低价: ¥{row['adult_price']}，需打开携程确认具体航班和起飞时间"
+    return f"命中低价: {row['flight_no']} {row['depart_time']} ¥{row['adult_price']}"
 
 
 def _already_saved(db: Session, task_id: int, target_date, row: dict) -> bool:

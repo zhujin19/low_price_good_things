@@ -23,6 +23,16 @@ def _normalize_sqlite_url(database_url: str) -> str:
     return f"sqlite:///{PROJECT_ROOT / sqlite_path}"
 
 
+def _normalize_project_path(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return str(path)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(ENV_FILE), env_file_encoding="utf-8")
 
@@ -39,10 +49,20 @@ class Settings(BaseSettings):
         default=None,
         alias="PLAYWRIGHT_EXECUTABLE_PATH",
     )
+    ctrip_storage_state_path: str | None = Field(
+        default=None,
+        alias="CTRIP_STORAGE_STATE_PATH",
+    )
 
     @model_validator(mode="after")
     def normalize_relative_paths(self):
         self.database_url = _normalize_sqlite_url(self.database_url)
+        self.playwright_executable_path = _normalize_project_path(
+            self.playwright_executable_path,
+        )
+        self.ctrip_storage_state_path = _normalize_project_path(
+            self.ctrip_storage_state_path,
+        )
         return self
 
 
