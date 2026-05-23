@@ -82,6 +82,19 @@ cp .env.example .env
 uvicorn app.main:app --reload --app-dir .
 ```
 
+也可以使用项目内置入口启动，适合 Ubuntu 上通过 `nohup`、systemd 或 supervisor 执行：
+
+```bash
+python3 /path/to/flight-price-monitor/run.py --host 0.0.0.0 --port 8000
+```
+
+如果希望安装成命令行工具：
+
+```bash
+pip install -e .
+flight-price-monitor --host 0.0.0.0 --port 8000
+```
+
 启动后访问：
 
 - Web 页面：`http://127.0.0.1:8000/`
@@ -99,13 +112,26 @@ curl -X POST http://127.0.0.1:8000/tasks/1/run
 
 #### `ModuleNotFoundError: No module named 'app'`
 
-请确保你在项目根目录（即包含 `app/` 和 `scripts/` 的目录）执行命令：
+这个错误通常是 Ubuntu 服务脚本、`nohup` 或 supervisor 没有在项目根目录执行，导致 Python 找不到 `app/` 包。推荐改用内置入口，它会自动把项目根目录加入 `uvicorn` 的模块搜索路径：
+
+```bash
+python3 /path/to/flight-price-monitor/run.py --host 0.0.0.0 --port 8000
+```
+
+如果继续直接使用 `uvicorn`，请确保在项目根目录（即包含 `app/` 和 `scripts/` 的目录）执行，并显式指定 `--app-dir`：
+
+```bash
+cd /path/to/flight-price-monitor
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir .
+```
+
+初始化数据库也请使用项目路径下的脚本：
 
 ```bash
 python3 scripts/init_db.py
 ```
 
-本项目的 `scripts/init_db.py` 已自动处理模块路径；如果你复制了旧脚本，请更新后重试。
+本项目现在会固定读取项目根目录下的 `.env`，默认 SQLite 数据库也固定为项目根目录下的 `flight_monitor.db`，避免服务工作目录不同导致本地和 Ubuntu 行为不一致。
 
 ## 扩展 Provider 指南
 

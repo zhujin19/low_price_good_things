@@ -1,5 +1,4 @@
 from collections import defaultdict
-from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, Query, Request
@@ -11,12 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
 from app.models import Alert, FlightPrice, MonitorTask, ProviderLog
+from app.paths import APP_DIR
 from app.scheduler.jobs import start_scheduler
 from app.services.monitor_service import run_check
 from app.services.time_service import format_beijing
 
 app = FastAPI(title="Flight Price Monitor")
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = APP_DIR
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.filters["beijing_time"] = format_beijing
