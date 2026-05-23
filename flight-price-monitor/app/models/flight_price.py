@@ -4,6 +4,7 @@ from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.services.time_service import beijing_now
 
 
 class FlightPrice(Base):
@@ -21,4 +22,4 @@ class FlightPrice(Base):
     arrive_time: Mapped[str] = mapped_column(String(8), nullable=False)
     adult_price: Mapped[int] = mapped_column(Integer, nullable=False)
     booking_url: Mapped[str] = mapped_column(String(500), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=beijing_now)

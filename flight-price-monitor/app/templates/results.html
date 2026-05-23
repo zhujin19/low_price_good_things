@@ -1,41 +1,88 @@
 {% extends 'base.html' %}
 {% block title %}低价票{% endblock %}
 {% block content %}
-<section class='bg-white rounded-lg border border-slate-200 shadow-sm p-5'>
-  <div class='flex items-center justify-between mb-4'>
-    <h2 class='text-xl font-semibold'>低价票结果</h2>
-    <div class='flex items-center gap-2'>
+<section class='space-y-4'>
+  <div class='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+    <div>
+      <h2 class='text-xl font-semibold text-slate-900'>低价票结果</h2>
+      <p class='mt-1 text-sm text-slate-500'>按出发日期、航班、航线聚合，曲线按采集时间展示价格变化。</p>
+    </div>
+    <div class='flex flex-wrap items-center gap-2'>
       <a class='rounded-md px-3 py-2 text-sm {{ "bg-slate-900 text-white" if sort == "latest" else "bg-slate-100 text-slate-700 hover:bg-slate-200" }}' href='/results?sort=latest'>最新</a>
       <a class='rounded-md px-3 py-2 text-sm {{ "bg-slate-900 text-white" if sort == "price_asc" else "bg-slate-100 text-slate-700 hover:bg-slate-200" }}' href='/results?sort=price_asc'>价格升序</a>
       <a class='rounded-md px-3 py-2 text-sm {{ "bg-slate-900 text-white" if sort == "price_desc" else "bg-slate-100 text-slate-700 hover:bg-slate-200" }}' href='/results?sort=price_desc'>价格降序</a>
     </div>
   </div>
-  <div class='overflow-auto'>
-    <table class='min-w-full text-sm'>
-      <thead class='bg-slate-100'>
-        <tr>
-          <th class='text-left p-2'>采集时间</th><th class='text-left p-2'>航司</th><th class='text-left p-2'>航班</th><th class='text-left p-2'>航线</th><th class='text-left p-2'>出发</th><th class='text-left p-2'>起抵</th><th class='text-left p-2'>价格</th><th class='text-left p-2'>链接</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-        <tr class='border-b'>
-          <td class='p-2'>{{ r.created_at }}</td><td class='p-2'>{{ r.airline }}（{{ r.provider }}）</td><td class='p-2'>{{ r.flight_no }}</td><td class='p-2'>{{ r.depart_airport }}→{{ r.arrive_airport }}</td><td class='p-2'>{{ r.target_date }}</td><td class='p-2'>{{ r.depart_time }}-{{ r.arrive_time }}</td>
-          <td class='p-2'>
-            <div class='flex items-center gap-2'>
-              <span class='font-semibold text-emerald-600'>¥{{ r.adult_price }}</span>
-              {% if top_ranks.get(r.id) %}
-              <span class='rounded-full px-2 py-0.5 text-xs font-semibold {{ "bg-amber-100 text-amber-800" if top_ranks.get(r.id) == 1 else ("bg-slate-200 text-slate-800" if top_ranks.get(r.id) == 2 else "bg-orange-100 text-orange-800") }}'>TOP{{ top_ranks.get(r.id) }}</span>
-              {% endif %}
-            </div>
-          </td>
-          <td class='p-2'><a class='text-blue-600' href='{{ r.booking_url }}' target='_blank'>携程</a></td>
-        </tr>
-        {% else %}
-        <tr><td class='p-3 text-slate-500' colspan='8'>暂无低价票结果，请先运行任务。</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+  <div class='grid grid-cols-1 gap-4'>
+    {% for group in groups %}
+    <article class='bg-white rounded-lg border border-slate-200 shadow-sm p-4'>
+      <div class='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(360px,1fr)_340px]'>
+        <div class='min-w-0'>
+          <div class='flex flex-wrap items-center gap-2'>
+            <h3 class='text-base font-semibold text-slate-900'>{{ group.target_date }} · {{ group.flight_no }} · {{ group.route }}</h3>
+            {% if group.top_rank %}
+            <span class='rounded-full px-2 py-0.5 text-xs font-semibold {{ "bg-amber-100 text-amber-800" if group.top_rank == 1 else ("bg-slate-200 text-slate-800" if group.top_rank == 2 else "bg-orange-100 text-orange-800") }}'>TOP{{ group.top_rank }}</span>
+            {% endif %}
+          </div>
+          <div class='mt-2 grid grid-cols-2 gap-3 text-sm text-slate-600 md:grid-cols-4'>
+            <div><span class='block text-xs text-slate-400'>航司/渠道</span>{{ group.airline }}（{{ group.providers }}）</div>
+            <div><span class='block text-xs text-slate-400'>起抵时间</span>{{ group.depart_time }}-{{ group.arrive_time }}</div>
+            <div><span class='block text-xs text-slate-400'>最新价格</span><span class='font-semibold text-slate-900'>¥{{ group.latest_price }}</span></div>
+            <div><span class='block text-xs text-slate-400'>最低价格</span><span class='font-semibold text-emerald-600'>¥{{ group.min_price }}</span></div>
+          </div>
+          <div class='mt-4 overflow-auto'>
+            <table class='min-w-full text-sm'>
+              <thead class='bg-slate-100'>
+                <tr><th class='p-2 text-left'>采集时间</th><th class='p-2 text-left'>渠道</th><th class='p-2 text-left'>价格</th><th class='p-2 text-left'>链接</th></tr>
+              </thead>
+              <tbody>
+                {% for r in group.rows %}
+                <tr class='border-b last:border-0'>
+                  <td class='p-2'>{{ r.created_at|beijing_time }}</td>
+                  <td class='p-2'>{{ r.provider }}</td>
+                  <td class='p-2'>
+                    <span class='font-semibold {{ "text-emerald-600" if r.id == group.min_row.id else "text-slate-900" }}'>¥{{ r.adult_price }}</span>
+                    {% if r.id == group.min_row.id %}
+                    <span class='ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700'>最低</span>
+                    {% endif %}
+                  </td>
+                  <td class='p-2'><a class='text-blue-600' href='{{ r.booking_url }}' target='_blank'>预订</a></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class='rounded-md border border-slate-200 bg-slate-50 p-3'>
+          <div class='mb-2 flex items-center justify-between text-xs text-slate-500'>
+            <span>价格变化</span>
+            <span>{{ group.rows|length }} 次采集</span>
+          </div>
+          <svg viewBox='0 0 {{ group.chart.width }} {{ group.chart.height }}' class='h-28 w-full overflow-visible' role='img' aria-label='{{ group.flight_no }} 价格曲线'>
+            <line x1='12' y1='60' x2='228' y2='60' stroke='#cbd5e1' stroke-width='1'></line>
+            <polyline points='{{ group.chart.points }}' fill='none' stroke='#2563eb' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'></polyline>
+            {% for point in group.chart.point_items %}
+            <circle cx='{{ point.x }}' cy='{{ point.y }}' r='3' fill='#2563eb'>
+              <title>{{ point.time }} ¥{{ point.price }}</title>
+            </circle>
+            {% endfor %}
+            {% if group.chart.min_point %}
+            <circle cx='{{ group.chart.min_point.x }}' cy='{{ group.chart.min_point.y }}' r='5' fill='#059669'></circle>
+            <text x='{{ group.chart.min_point.x }}' y='{{ group.chart.min_point.y - 9 }}' text-anchor='middle' font-size='10' font-weight='700' fill='#047857'>¥{{ group.chart.min_price }}</text>
+            {% endif %}
+          </svg>
+          <div class='mt-2 flex justify-between text-xs text-slate-500'>
+            <span>{{ group.rows[0].created_at|beijing_time("%m-%d %H:%M") }}</span>
+            <span>最低 {{ group.min_created_at|beijing_time("%m-%d %H:%M") }}</span>
+            <span>{{ group.latest_created_at|beijing_time("%m-%d %H:%M") }}</span>
+          </div>
+        </div>
+      </div>
+    </article>
+    {% else %}
+    <div class='bg-white rounded-lg border border-slate-200 p-5 text-sm text-slate-500 shadow-sm'>暂无低价票结果，请先运行任务。</div>
+    {% endfor %}
   </div>
 </section>
 {% endblock %}

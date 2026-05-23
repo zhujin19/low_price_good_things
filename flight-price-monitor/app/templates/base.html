@@ -24,5 +24,31 @@
       {% block content %}{% endblock %}
     </div>
   </main>
+  <div id='toast-root' class='fixed right-4 top-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2'></div>
+  <script>
+    window.showToast = function(message, type) {
+      if (!message) return;
+      const root = document.getElementById('toast-root');
+      const toast = document.createElement('div');
+      const tone = type === 'error'
+        ? 'border-red-200 bg-red-50 text-red-800'
+        : type === 'success'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : 'border-blue-200 bg-blue-50 text-blue-800';
+      toast.className = 'rounded-md border px-4 py-3 text-sm shadow-lg ' + tone;
+      toast.textContent = message;
+      root.appendChild(toast);
+      window.setTimeout(function() {
+        toast.classList.add('opacity-0');
+        toast.style.transition = 'opacity 180ms ease';
+        window.setTimeout(function() { toast.remove(); }, 220);
+      }, 4200);
+    };
+
+    const initialToast = {{ toast_message|default('', true)|tojson }};
+    if (initialToast) {
+      window.showToast(initialToast, 'success');
+    }
+  </script>
 </body>
 </html>

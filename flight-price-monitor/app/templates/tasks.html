@@ -8,14 +8,25 @@
   </div>
   <div class='bg-white rounded-lg border border-slate-200 shadow-sm p-4 overflow-auto'>
     <table class='min-w-full text-sm'>
-      <thead class='bg-slate-100'><tr><th class='p-2 text-left'>名称</th><th class='p-2 text-left'>航线</th><th class='p-2 text-left'>时间</th><th class='p-2 text-left'>阈值</th><th class='p-2 text-left'>任务状态</th><th class='p-2 text-left'>操作</th></tr></thead>
+      <thead class='bg-slate-100'><tr><th class='p-2 text-left'>名称</th><th class='p-2 text-left'>航线</th><th class='p-2 text-left'>时间</th><th class='p-2 text-left'>阈值</th><th class='p-2 text-left'>最低TOP3</th><th class='p-2 text-left'>任务状态</th><th class='p-2 text-left'>操作</th></tr></thead>
       <tbody>
         {% for t in tasks %}
         <tr class='border-b'>
           <td class='p-2'>{{ t.name }}</td>
           <td class='p-2'>{{ t.origin_city }}→{{ t.destination_city }}</td>
-          <td class='p-2'>周{{ ['一','二','三','四','五','六','日'][t.weekday] }} {{ t.time_start[:5] }}-{{ t.time_end[:5] }}</td>
+          <td class='p-2'>周{{ ['一','二','三','四','五','六','日'][t.weekday] }} {{ t.time_start[:5] }}-{{ t.time_end[:5] }} 北京时间</td>
           <td class='p-2'>¥{{ t.max_price }}</td>
+          <td class='p-2'>
+            <div class='flex min-w-48 flex-col gap-1'>
+              {% for item in task_top_prices.get(t.id, []) %}
+              <span class='rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-700'>
+                TOP{{ loop.index }} <span class='font-semibold text-emerald-600'>¥{{ item.adult_price }}</span> {{ item.target_date }} {{ item.flight_no }} {{ item.depart_time[:5] }}
+              </span>
+              {% else %}
+              <span class='text-xs text-slate-400'>暂无命中</span>
+              {% endfor %}
+            </div>
+          </td>
           <td class='p-2'>
             <form action='/tasks/{{t.id}}/toggle' method='post' class='inline-flex items-center gap-2'>
               <label class='relative inline-flex h-6 w-11 cursor-pointer items-center'>
@@ -28,15 +39,29 @@
           </td>
           <td class='p-2 space-x-2'>
             <a class='text-blue-600' href='/tasks/{{t.id}}/edit'>编辑</a>
-            <form action='/tasks/{{t.id}}/run' method='post' class='inline'><button class='text-emerald-600'>立即检测</button></form>
+            <form action='/tasks/{{t.id}}/run' method='post' class='inline' data-run-task-form data-task-name="{{ t.name|e }}"><button class='text-emerald-600' type='submit'>立即检测</button></form>
             <form action='/tasks/{{t.id}}/delete' method='post' class='inline'><button class='text-red-600'>删除</button></form>
           </td>
         </tr>
         {% else %}
-        <tr><td class='p-3 text-slate-500' colspan='6'>暂无任务，请先创建。</td></tr>
+        <tr><td class='p-3 text-slate-500' colspan='7'>暂无任务，请先创建。</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
+<script>
+  document.querySelectorAll('[data-run-task-form]').forEach(function(form) {
+    form.addEventListener('submit', function() {
+      const taskName = form.getAttribute('data-task-name') || '当前任务';
+      const button = form.querySelector('button[type="submit"]');
+      window.showToast('正在检测「' + taskName + '」，完成后会跳转到低价票结果。', 'info');
+      if (button) {
+        button.disabled = true;
+        button.textContent = '检测中...';
+        button.classList.add('cursor-wait', 'text-slate-400');
+      }
+    });
+  });
+</script>
 {% endblock %}

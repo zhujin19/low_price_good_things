@@ -32,11 +32,11 @@
       <input name="max_price" type="number" min="1" required value="{{ task.max_price if task else 500 }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
     </label>
     <label class="space-y-1">
-      <span class="text-sm text-slate-600">起飞开始</span>
+      <span class="text-sm text-slate-600">起飞开始（北京时间）</span>
       <input name="time_start" type="time" required value="{{ (task.time_start[:5] if task else '18:00') }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
     </label>
     <label class="space-y-1">
-      <span class="text-sm text-slate-600">起飞结束</span>
+      <span class="text-sm text-slate-600">起飞结束（北京时间）</span>
       <input name="time_end" type="time" required value="{{ (task.time_end[:5] if task else '23:59') }}" class="w-full border border-slate-300 rounded-md px-3 py-2">
     </label>
     <label class="flex items-center gap-2 md:col-span-2 text-sm text-slate-700">

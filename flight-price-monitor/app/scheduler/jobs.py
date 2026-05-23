@@ -3,8 +3,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.config import settings
 from app.database import SessionLocal
 from app.services.monitor_service import run_all_enabled_tasks
+from app.services.time_service import BEIJING_TZ
 
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(timezone=BEIJING_TZ)
 
 
 def scheduled_job():
