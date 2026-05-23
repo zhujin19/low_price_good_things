@@ -63,10 +63,9 @@ def run_all_enabled_tasks(db: Session):
 def _matches_task(row: dict, task: MonitorTask) -> bool:
     if row.get("adult_price", 999999) > task.max_price:
         return False
-    if row.get("price_scope") == "date_lowest":
-        return True
     depart_time = row.get("depart_time") or ""
-    if not depart_time:
+    arrive_time = row.get("arrive_time") or ""
+    if not depart_time or not arrive_time or "待确认" in (depart_time, arrive_time):
         return False
     return _in_time_range(depart_time, task.time_start, task.time_end)
 

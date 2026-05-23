@@ -279,6 +279,91 @@ class CtripProvider(BaseFlightProvider):
             }
         return normalized_rows
 
+    def check_login_health(self) -> dict:
+        storage_state_path = self._storage_state_path()
+        if not storage_state_path:
+            return {
+                "valid": False,
+                "status": "missing",
+                "message": "未找到携程登录态文件",
+            }
+
+        target_date = date.today() + timedelta(days=14)
+        url = self._build_url("北京", "武汉", target_date)
+        launch_options = {
+            "headless": settings.playwright_headless,
+            "args": [
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+            ],
+        }
+        executable_path = settings.playwright_executable_path or self._find_system_browser()
+        if executable_path:
+            launch_options["executable_path"] = executable_path
+
+        batch_search_status = {}
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(**launch_options)
+                context = browser.new_context(
+                    storage_state=str(storage_state_path),
+                    viewport={"width": 1440, "height": 1200},
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    ),
+                    locale="zh-CN",
+                    timezone_id="Asia/Shanghai",
+                )
+                page = context.new_page()
+
+                def capture_batch_search(response):
+                    if "search/api/search/batchSearch" not in response.url:
+                        return
+                    try:
+                        payload = response.json()
+                    except Exception:
+                        return
+                    batch_search_status["status"] = payload.get("status")
+                    batch_search_status["msg"] = payload.get("msg")
+                    data = payload.get("data") or {}
+                    batch_search_status["needUserLogin"] = data.get("needUserLogin")
+                    batch_search_status["lgn"] = data.get("lgn")
+
+                page.on("response", capture_batch_search)
+                page.goto(url, wait_until="domcontentloaded", timeout=settings.playwright_timeout_ms)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=10000)
+                except Exception:
+                    pass
+                page.wait_for_timeout(5000)
+                item_count = page.locator(".flight-item.domestic").count()
+                final_url = page.url
+                title = page.title()
+                browser.close()
+        except Exception as exc:
+            return {
+                "valid": False,
+                "status": "failed",
+                "message": str(exc),
+                "storage_state": str(storage_state_path),
+            }
+
+        need_login = batch_search_status.get("needUserLogin")
+        logged_in = batch_search_status.get("lgn")
+        valid = item_count > 0 or need_login is False or logged_in is True
+        return {
+            "valid": valid,
+            "status": "valid" if valid else "invalid",
+            "message": "登录态有效" if valid else "登录态无效或携程仍要求登录",
+            "storage_state": str(storage_state_path),
+            "batch_search": batch_search_status,
+            "flight_items": item_count,
+            "final_url": final_url,
+            "title": title,
+        }
+
     def _build_urls(self, origin: str, destination: str, target_date: date) -> list[str]:
         origin_code = self._city_code(origin)
         destination_code = self._city_code(destination)

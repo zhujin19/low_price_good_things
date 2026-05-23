@@ -156,6 +156,10 @@ python3 scripts/init_db.py
 
 本项目不保存携程账号密码，只保存 Playwright storage state 文件。该文件包含登录 Cookie，必须只保存在本机或可信服务器，不要提交到 Git。
 
+可以在 Web 页面进入 `设置`，点击 `获取登录态`。系统会打开携程登录窗口，完成登录后会自动保存登录态。保存后点击 `健康检查`，页面会显示 Cookie 是否有效。
+
+也可以在终端手动执行：
+
 ```bash
 python3 scripts/save_ctrip_storage_state.py
 ```

@@ -1,18 +1,105 @@
 {% extends 'base.html' %}
 {% block title %}设置{% endblock %}
 {% block content %}
-<section class='bg-white rounded-lg border border-slate-200 shadow-sm p-5 space-y-5'>
-  <h2 class='text-xl font-semibold'>系统设置</h2>
-  <div class='grid md:grid-cols-2 gap-4'>
-    <div class='border rounded-lg p-4'>
-      <h3 class='font-semibold'>通知策略</h3>
-      <p class='text-sm text-slate-500 mt-1'>建议：仅对“低于阈值且直飞”进行提醒，减少无效打扰。</p>
-    </div>
-    <div class='border rounded-lg p-4'>
-      <h3 class='font-semibold'>巡检频率</h3>
-      <p class='text-sm text-slate-500 mt-1'>建议：高峰期每 10 分钟，非高峰 30 分钟，兼顾时效与性能。</p>
+<section class='space-y-4'>
+  <div class='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+    <div>
+      <h2 class='text-xl font-semibold text-slate-900'>系统设置</h2>
+      <p class='mt-1 text-sm text-slate-500'>携程登录态、巡检频率和告警策略。</p>
     </div>
   </div>
-  <p class='text-xs text-slate-400'>此页面当前为轻量展示版，可继续扩展为可配置表单。</p>
+
+  {% if notice == 'capture_running' %}
+  <div class='rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800'>已打开携程登录窗口，完成登录后系统会自动保存登录态。</div>
+  {% elif notice == 'health_checked' and health %}
+  <div class='rounded-md border px-4 py-3 text-sm {{ "border-emerald-200 bg-emerald-50 text-emerald-800" if health.valid else "border-red-200 bg-red-50 text-red-800" }}'>{{ health.message }}</div>
+  {% endif %}
+
+  <div class='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]'>
+    <section class='rounded-lg border border-slate-200 bg-white p-5 shadow-sm'>
+      <div class='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'>
+        <div>
+          <h3 class='text-base font-semibold text-slate-900'>携程登录态</h3>
+          <div class='mt-3 grid grid-cols-1 gap-3 text-sm text-slate-600 md:grid-cols-2'>
+            <div>
+              <span class='block text-xs text-slate-400'>文件状态</span>
+              {% if storage_state.exists %}
+              <span class='font-semibold text-emerald-700'>已保存</span>
+              {% else %}
+              <span class='font-semibold text-red-700'>未保存</span>
+              {% endif %}
+            </div>
+            <div>
+              <span class='block text-xs text-slate-400'>Cookie</span>
+              <span class='font-semibold text-slate-900'>{{ storage_state.ctrip_cookie_count }}</span>
+              <span class='text-slate-400'>/ {{ storage_state.cookie_count }}</span>
+            </div>
+            <div class='md:col-span-2'>
+              <span class='block text-xs text-slate-400'>路径</span>
+              <code class='break-all text-xs text-slate-700'>{{ storage_state.path }}</code>
+            </div>
+            <div>
+              <span class='block text-xs text-slate-400'>更新时间</span>
+              {% if storage_state.mtime %}
+              {{ storage_state.mtime.strftime('%Y-%m-%d %H:%M:%S') }}
+              {% else %}
+              -
+              {% endif %}
+            </div>
+            <div>
+              <span class='block text-xs text-slate-400'>采集进程</span>
+              {% if capture_status.running %}
+              <span class='font-semibold text-blue-700'>运行中</span>
+              {% else %}
+              <span class='text-slate-500'>未运行</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class='flex shrink-0 flex-wrap gap-2'>
+          <form method='post' action='/settings/ctrip-storage/start'>
+            <button class='rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700' {% if capture_status.running %}disabled{% endif %}>获取登录态</button>
+          </form>
+          <form method='post' action='/settings/ctrip-storage/check'>
+            <button class='rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50'>健康检查</button>
+          </form>
+        </div>
+      </div>
+
+      <div class='mt-5 rounded-md border border-slate-200 bg-slate-50 p-4'>
+        <div class='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+          <div>
+            <p class='text-sm font-semibold text-slate-900'>Cookie 有效性</p>
+            {% if health %}
+            <p class='mt-1 text-sm {{ "text-emerald-700" if health.valid else "text-red-700" }}'>{{ health.message }}</p>
+            {% else %}
+            <p class='mt-1 text-sm text-slate-500'>尚未检查</p>
+            {% endif %}
+          </div>
+          {% if health %}
+          <span class='w-fit rounded-full px-3 py-1 text-xs font-semibold {{ "bg-emerald-100 text-emerald-800" if health.valid else "bg-red-100 text-red-800" }}'>{{ '有效' if health.valid else '无效' }}</span>
+          {% endif %}
+        </div>
+        {% if health %}
+        <div class='mt-3 grid grid-cols-1 gap-3 text-xs text-slate-500 md:grid-cols-3'>
+          <div><span class='block text-slate-400'>needUserLogin</span>{{ health.batch_search.needUserLogin if health.batch_search is defined and health.batch_search.needUserLogin is defined else '-' }}</div>
+          <div><span class='block text-slate-400'>lgn</span>{{ health.batch_search.lgn if health.batch_search is defined and health.batch_search.lgn is defined else '-' }}</div>
+          <div><span class='block text-slate-400'>航班卡片</span>{{ health.flight_items if health.flight_items is defined else '-' }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <aside class='space-y-4'>
+      <div class='rounded-lg border border-slate-200 bg-white p-5 shadow-sm'>
+        <h3 class='font-semibold text-slate-900'>通知策略</h3>
+        <p class='mt-2 text-sm text-slate-500'>仅保存起抵时间明确、低于阈值的航班结果。</p>
+      </div>
+      <div class='rounded-lg border border-slate-200 bg-white p-5 shadow-sm'>
+        <h3 class='font-semibold text-slate-900'>巡检频率</h3>
+        <p class='mt-2 text-sm text-slate-500'>当前由 <code>CHECK_INTERVAL_MINUTES</code> 控制。</p>
+      </div>
+    </aside>
+  </div>
 </section>
 {% endblock %}

@@ -12,6 +12,13 @@ from app.database import Base, engine, get_db
 from app.models import Alert, FlightPrice, MonitorTask, ProviderLog
 from app.paths import APP_DIR
 from app.scheduler.jobs import start_scheduler
+from app.services.ctrip_auth_service import (
+    capture_status,
+    check_health,
+    last_health,
+    start_capture,
+    storage_state_summary,
+)
 from app.services.monitor_service import run_check
 from app.services.time_service import format_beijing
 
@@ -43,8 +50,8 @@ def dashboard(
     db: Session = Depends(get_db),
 ):
     tasks = db.query(MonitorTask).order_by(MonitorTask.id.desc()).all()
-    results = db.query(FlightPrice).order_by(*_result_order_by(low_price_sort)).limit(200).all()
-    history_rows = db.query(FlightPrice).order_by(FlightPrice.id.desc()).limit(500).all()
+    results = _usable_flight_query(db).order_by(*_result_order_by(low_price_sort)).limit(200).all()
+    history_rows = _usable_flight_query(db).order_by(FlightPrice.id.desc()).limit(500).all()
     logs = db.query(ProviderLog).order_by(ProviderLog.id.desc()).limit(500).all()
     top_rows = _global_top_rows(db)
     return templates.TemplateResponse("dashboard.html", {
@@ -136,7 +143,7 @@ def results(
     saved_count: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    rows = db.query(FlightPrice).order_by(FlightPrice.id.desc()).limit(1000).all()
+    rows = _usable_flight_query(db).order_by(FlightPrice.id.desc()).limit(1000).all()
     groups = _price_groups(rows, sort)
     toast_message = None
     if notice == "run_complete" and task_name is not None and saved_count is not None:
@@ -160,7 +167,7 @@ def results(
 
 @app.get("/history")
 def history(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse("history.html", {"request": request, "rows": db.query(FlightPrice).order_by(FlightPrice.id.desc()).limit(500).all()})
+    return templates.TemplateResponse("history.html", {"request": request, "rows": _usable_flight_query(db).order_by(FlightPrice.id.desc()).limit(500).all()})
 
 
 @app.get("/provider-logs")
@@ -169,8 +176,30 @@ def provider_logs(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/settings")
-def settings(request: Request):
-    return templates.TemplateResponse("settings.html", {"request": request})
+def settings(request: Request, notice: str | None = Query(default=None)):
+    return templates.TemplateResponse(
+        "settings.html",
+        {
+            "request": request,
+            "notice": notice,
+            "storage_state": storage_state_summary(),
+            "capture_status": capture_status(),
+            "health": last_health(),
+        },
+    )
+
+
+@app.post("/settings/ctrip-storage/start")
+def start_ctrip_storage_capture():
+    status = start_capture()
+    notice = "capture_running" if status["running"] else "capture_failed"
+    return RedirectResponse(f"/settings?notice={notice}", status_code=303)
+
+
+@app.post("/settings/ctrip-storage/check")
+def check_ctrip_storage_health():
+    check_health()
+    return RedirectResponse("/settings?notice=health_checked", status_code=303)
 
 
 def _result_order_by(sort: str):
@@ -181,9 +210,16 @@ def _result_order_by(sort: str):
     }.get(sort, [desc(FlightPrice.id)])
 
 
+def _usable_flight_query(db: Session):
+    return db.query(FlightPrice).filter(
+        FlightPrice.depart_time != "待确认",
+        FlightPrice.arrive_time != "待确认",
+    )
+
+
 def _global_top_rows(db: Session, limit: int = 3) -> list[FlightPrice]:
     return (
-        db.query(FlightPrice)
+        _usable_flight_query(db)
         .order_by(FlightPrice.adult_price.asc(), desc(FlightPrice.id))
         .limit(limit)
         .all()
@@ -198,7 +234,7 @@ def _task_top_prices(db: Session, tasks: list[MonitorTask]) -> dict[int, list[Fl
     top_prices: dict[int, list[FlightPrice]] = {}
     for task in tasks:
         top_prices[task.id] = (
-            db.query(FlightPrice)
+            _usable_flight_query(db)
             .filter(FlightPrice.task_id == task.id)
             .order_by(FlightPrice.adult_price.asc(), desc(FlightPrice.id))
             .limit(3)
