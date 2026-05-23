@@ -33,7 +33,11 @@ SYSTEM_BROWSER_CANDIDATES = [
 class CtripProvider(BaseFlightProvider):
     name = "ctrip"
 
+    def __init__(self):
+        self.last_diagnostics: dict = {}
+
     def search(self, origin: str, destination: str, target_date: date) -> list[dict]:
+        self.last_diagnostics = {}
         if settings.ctrip_api_url and settings.ctrip_api_key:
             return self._search_by_api(origin, destination, target_date)
         return self._search_by_playwright(origin, destination, target_date)
@@ -54,26 +58,76 @@ class CtripProvider(BaseFlightProvider):
 
     def _search_by_playwright(self, origin: str, destination: str, target_date: date) -> list[dict]:
         urls = self._build_urls(origin, destination, target_date)
-        launch_options = {"headless": settings.playwright_headless}
+        launch_options = {
+            "headless": settings.playwright_headless,
+            "args": [
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+            ],
+        }
         executable_path = settings.playwright_executable_path or self._find_system_browser()
         if executable_path:
             launch_options["executable_path"] = executable_path
 
         with sync_playwright() as p:
             browser = p.chromium.launch(**launch_options)
-            page = browser.new_page(
+            context = browser.new_context(
                 viewport={"width": 1440, "height": 1200},
                 user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                 ),
+                locale="zh-CN",
+                timezone_id="Asia/Shanghai",
             )
+            context.add_init_script(
+                """
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh'] });
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                """
+            )
+            page = context.new_page()
+            batch_search_status = {}
+
+            def capture_batch_search(response):
+                if "search/api/search/batchSearch" not in response.url:
+                    return
+                try:
+                    payload = response.json()
+                except Exception:
+                    return
+                batch_search_status["status"] = payload.get("status")
+                batch_search_status["msg"] = payload.get("msg")
+                data = payload.get("data") or {}
+                batch_search_status["needUserLogin"] = data.get("needUserLogin")
+                batch_search_status["lgn"] = data.get("lgn")
+
+            page.on("response", capture_batch_search)
             rows = []
             booking_url = urls[0]
+            diagnostics = []
             for url in urls:
                 page.goto(url, wait_until="domcontentloaded", timeout=settings.playwright_timeout_ms)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=10000)
+                except Exception:
+                    pass
                 page.wait_for_timeout(8000)
-                if page.locator(".flight-item.domestic").count() == 0:
+                item_count = page.locator(".flight-item.domestic").count()
+                body_text = self._safe_body_text(page)
+                diagnostics.append(
+                    {
+                        "url": url,
+                        "final_url": page.url,
+                        "title": page.title(),
+                        "flight_items": item_count,
+                        "no_flights_text": "未找到符合条件的航班" in body_text,
+                        "need_user_login": batch_search_status.get("needUserLogin"),
+                    }
+                )
+                if item_count == 0:
                     continue
                 booking_url = page.url
                 rows = page.eval_on_selector_all(".flight-item.domestic", self._dom_extract_script())
@@ -82,7 +136,16 @@ class CtripProvider(BaseFlightProvider):
             browser.close()
 
         flights = [self._normalize_dom_row(row, booking_url) for row in rows]
-        return [row for row in flights if row is not None]
+        normalized_rows = [row for row in flights if row is not None]
+        if not normalized_rows:
+            self.last_diagnostics = {
+                "mode": "playwright",
+                "headless": settings.playwright_headless,
+                "browser": executable_path or "playwright-chromium",
+                "batch_search": batch_search_status,
+                "pages": diagnostics[-3:],
+            }
+        return normalized_rows
 
     def _build_urls(self, origin: str, destination: str, target_date: date) -> list[str]:
         origin_code = self._city_code(origin)
@@ -217,3 +280,9 @@ class CtripProvider(BaseFlightProvider):
 
     def _first_line(self, value: str) -> str:
         return next((line.strip() for line in (value or "").splitlines() if line.strip()), "")
+
+    def _safe_body_text(self, page) -> str:
+        try:
+            return page.locator("body").inner_text(timeout=3000) or ""
+        except Exception:
+            return ""

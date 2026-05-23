@@ -53,6 +53,13 @@ pip install -r requirements.txt
 python3 scripts/install_playwright.py
 ```
 
+Ubuntu 上建议同时安装 Chrome/Chromium 依赖：
+
+```bash
+python3 -m playwright install-deps chromium
+python3 -m playwright install chromium
+```
+
 ### 3）初始化数据库
 
 ```bash
@@ -132,6 +139,18 @@ python3 scripts/init_db.py
 ```
 
 本项目现在会固定读取项目根目录下的 `.env`，默认 SQLite 数据库也固定为项目根目录下的 `flight_monitor.db`，避免服务工作目录不同导致本地和 Ubuntu 行为不一致。
+
+#### Ubuntu 执行成功但结果为空
+
+携程页面在无头浏览器下可能返回空航班列表或要求登录，表现为日志里 `returned 0 flights`。本项目已对无头模式增加浏览器特征兼容，并把 0 条结果标记为 `no_results`，日志会包含页面标题、最终 URL、是否出现“未找到符合条件的航班”、以及 `needUserLogin` 等诊断信息。
+
+如果 Ubuntu 仍然持续返回 0，可以改用虚拟显示器运行有头浏览器：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y xvfb
+PLAYWRIGHT_HEADLESS=false xvfb-run -a python3 /path/to/flight-price-monitor/run.py --host 0.0.0.0 --port 8000
+```
 
 ## 扩展 Provider 指南
 
